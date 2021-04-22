@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Web2Web Browsing Test</title>
+	<meta charset="utf-8">
+</head>
+<style>
+    body{
+	margin: 0px;
+	padding: 0px;
+	border: 0px;
+    }
+    .magnetBar {
+	width: 100%;
+	height: 45px;
+	background-color: #EBEBEB;
+	margin: 0px;
+	box-sizing: border-box;
+	padding: 0px;
+	border: 0px;
+	border-bottom: 1px;
+    display: flex;
+    position: relative;
+    top: 0;
+    border-color: #707070;
+    border-style: solid;
+    }
+    #mainPage {
+	width: 100%;
+	z-index: -1;
+    }
+    #magnetInput {
+	margin: 7px;
+	padding: 5px;
+	width: 100%;
+	box-sizing: border-box;
+    }
+    #progressBar {
+	z-index: 1;
+	height: 5px;
+	width: 0%;
+	background-color: #33d6ff;
+	box-sizing: border-box;
+    }
+    #backbutton, #forwardbutton{
+    margin-top: 3px;
+    }
+
+</style>
+
+<body>
+	<div class="magnetBar">
+	<svg width="40" height ="40" id="backbutton">
+        <circle cx="20" cy="20" r="15" stroke="grey" stroke-width="1" fill="#EBEBEB"/>
+        <polyline id="backArrow" points="12,20 19,14 12,20 19,26 12,20 26,20 12,20" style="fill:#EBEBEB;stroke:grey;stroke-width:2;stroke-linejoin:round" />
+	</svg>
+	<svg width="40" height ="40" id="forwardbutton">
+        <circle cx="20" cy="20" r="15" stroke="grey" stroke-width="1" fill="#EBEBEB"/>
+        <polyline id="forwardArrow" points="28,20 21,14 28,20 21,26 28,20 12,20 28,20" style="fill:#EBEBEB;stroke:grey;stroke-width:2;stroke-linejoin:round" />
+	</svg>
+	<input type="text" id="magnetInput" placeholder="Enter magnet link, torrent info hash, or URL to torrent">
+	</div>
+	<div id="progressBar" >
+	<iframe id="mainPage" srcdoc="" style="position: absolute; height: 93%; border: none; box-sizing: border-box;">
+	</iframe>
+	</div>
+	<script src="https://cdn.jsdelivr.net/npm/webtorrent@latest/webtorrent.min.js"></script>
+	<script>
+		var pastTorrents = [];
+		var currentTorrent = 0;
+
+		var cancelDownload = false;
+		var currentlyDownloading = false;
+		var magnetInput = document.getElementById("magnetInput")
+		magnetInput.addEventListener('keydown', function onEvent(event){
+			if (event.key === "Enter") {
+				submitted();
+				checkForPreviouslyDownloaded(magnetInput.value);
+			}
+		});
+
+		function submitted(){
+			console.log("Submission went in!");
+		}
+
+		function downloadChecker(magnetLink){
+            var arrayLength = pastTorrents.length;
+			if(currentlyDownloading == true){
+				cancelDownload = true;
+			}
+			if(arrayLength < 30){
+                pastTorrents.push(magnetLink);
+			} else {
+                pastTorrents.shift();
+                pastTorrents.push(magnetLink);
+			}
+			if(arrayLength < currentTorrent){
+                pastTorrents = pastTorrents.slice(0, currentTorrent);
+			}
+			newTorrent(magnetLink);
+			arrowColours();
+			currentTorrent++;
+		}
+		
+		function newTorrent(magnetLink){
+			var client = new WebTorrent();
+			client.add(magnetLink, function(torrent) {
+				var file = torrent.files[0];
+				currentlyDownloading = true;
+				console.log("Starting download.");
+				torrent.on('download', function(bytes){
+					var progress = (Math.round(torrent.progress * 100)) + "%";
+					document.getElementById("progressBar").style.width = progress;
+					//console.log(progress);
+					if(torrent.progress == 1){
+						setTimeout(function(){document.getElementById("progressBar").style.width = "0%";}, 20);
+					}
+					if(cancelDownload == true){
+						cancelDownload = false;
+						torrent.destroy(function(){console.log("Destroyed successfully.");});
+					}
+				});
+				torrent.on('done', function(){
+					currentlyDownloading = false;
+					file.getBuffer(function(err, buffer) {
+						// overwrite current page with new HTML
+						writeToiFrame(buffer);
+						console.log(typeof(buffer))
+						file.getBlob(function(err, blob){
+                            console.log(typeof(torrent.files));
+                            var reader = new FileReader();
+                            console.log(reader.readAsArrayBuffer(blob));
+                            });
+						/*var defaultMagnet = "magnet:?xt=urn:btih:c7e537d78f608d9228b79d285e8ffb00fc31739b&dn=ExampleDomain.html&tr=wss%3A%2F%2Ftracker.openwebtorrent.com&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969&tr=udp%3A%2F%2Ftracker.coppersurfer.tk%3A6969&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337&tr=udp%3A%2F%2Fexplodie.org%3A6969&tr=udp%3A%2F%2Ftracker.empire-js.us%3A1337";
+                    localStorage.setItem("Home", client.get(defaultMagnet));
+                    localStorage.setItem("Home.files", client.get(defaultMagnet));
+                    console.log(localStorage.getItem("Home"));
+                    console.log(localStorage.getItem("Home.files"));*/
+					});
+				});
+			});
+		}
+
+
+		function checkForHomepage(){
+            var client = new WebTorrent();
+            if(localStorage.getItem("Home") == null){
+                var defaultMagnet = "magnet:?xt=urn:btih:c7e537d78f608d9228b79d285e8ffb00fc31739b&dn=ExampleDomain.html&tr=wss%3A%2F%2Ftracker.openwebtorrent.com&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969&tr=udp%3A%2F%2Ftracker.coppersurfer.tk%3A6969&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337&tr=udp%3A%2F%2Fexplodie.org%3A6969&tr=udp%3A%2F%2Ftracker.empire-js.us%3A1337";
+                console.log("No home saved");
+                downloadChecker(defaultMagnet);
+            } else {
+                localStorage.getItem("Home");
+            }
+            
+		}
+		
+		function writeToiFrame(buffer){
+            console.log("Download successful. Writing to HTML");
+            document.getElementById("mainPage").srcdoc = buffer.toString();	
+		}
+		
+		document.addEventListener('DOMContentLoaded', function() {
+			console.log(localStorage.getItem("Home"));
+			console.log("DOM content loaded!");
+		});
+
+		function progressBarIncrease(torrent){
+			var progress = torrent.progress;
+			if(progress < 1){
+				document.getElementById("progressBar").style.width = progress * 100 +"%";
+				console.log(progress);
+				setTimeout(progressBarIncrease, 20, torrent);
+			} else {
+				document.getElementById("progressBar").style.width = progress * 100 +"%";
+				document.getElementById("progressBar").style.width = progress * 100 + 1 +"%";
+				setTimeout(function(){document.getElementById("progressBar").style.width = "0%";}, 20);
+			}
+		}
+
+        function removeLastTorrent(){
+            var client = new WebTorrent();
+            client.remove(client.torrents[0]);
+        }
+
+		function checkForPreviouslyDownloaded(magnetLink){
+			var client = new WebTorrent();
+            if(client.get(magnetLink) == null){
+                downloadChecker(magnetLink);
+            } else {
+                file = client.get(magnetLink).files[0];
+                    file.getBuffer(function(err, buffer) {
+						writeToiFrame(buffer);
+					});
+            } 
+			
+		}
+		
+		function arrowColours(){
+            var forArr = document.getElementById("forwardArrow").style.color;
+            var backArr = document.getElementById("backArrow").style.color;
+            if(currentTorrent > 1){
+                forArr = "black";
+            } else {
+                forArr = "grey";
+            }
+            if(currentTorrent < pastTorrents.length){
+                backArr = "black";
+            } else {
+                backArr = "grey";
+            }
+		}
+
+		function backButton(){
+		}
+		function forwardButton(){
+		}
+
+	</script>
+
+</body>
+</html>
